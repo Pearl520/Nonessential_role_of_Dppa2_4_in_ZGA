@@ -1,0 +1,536 @@
+---
+title: "Dppa2_Dppa4_pooled_totalRNAseq"
+author: "Zhiyuan Chen"
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+output: 
+  html_notebook:
+    theme: paper 
+    toc: yes
+---
+
+#### Meta data info
+
+1. Genotype: 
+
+  + CTR:   (Dppa2/4 fl/fl) x B6 WT
+  + matKO: (Gdf9-Cre, Dppa2/4 fl/fl) x B6 WT 
+
+2. Stage: 
+  
+  + 1-cell: 12hpf
+  + 2-cell: 28hpf 
+  
+3. pooled embryo stranded (reverse) total RNAseq, 2 x 75 bp NextSeq550
+
+#### Mapping stats
+
+**Note:**
+
+* "p2" = "Dppa2" 
+* "p4" = "Dppa4"
+* "Cleaned_reads" = reads free of low quality/adaptors and unaligned to rRNA
+
+Sample | Raw_reads  | Cleaned_reads | Uniq_reads | Uniq_%
+-------|------------|---------------|------------|------
+p2_CTR1C_1 | 34,504,975 | 34,445,271 | 24,868,928 | 72.20 
+p2_CTR1C_2 | 32,472,058 | 32,411,068 | 23,793,874 | 73.41 
+p2_MKO1C_1 | 34,883,373 | 34,820,987 | 24,631,363 | 70.74 
+p2_MKO1C_2 | 32,001,817 | 31,944,338 | 22,967,878 | 71.90 
+p2_CTR2C_1 | 23,445,343 | 23,406,436 | 14,081,415 | 60.16
+p2_CTR2C_2 | 32,001,817 | 31,137,398 | 18,562,903 | 59.62
+p2_MKO2C_1 | 26,445,901 | 26,403,498 | 15,297,454 | 57.94 
+p2_MKO2C_2 | 32,412,080 | 32,350,185 | 19,907,480 | 61.54
+p4_CTR1C_1 | 36,237,361 | 36,203,524 | 26,235,493 | 72.47
+p4_CTR1C_2 | 38,790,878 | 38,745,731 | 29,071,395 | 75.03
+p4_MKO1C_1 | 32,053,864 | 32,016,625 | 23,686,048 | 73.98
+p4_MKO1C_2 | 33,785,175 | 33,741,741 | 25,234,171 | 74.79
+p4_CTR2C_1 | 34,322,405 | 34,267,360 | 21,521,247 | 62.80
+p4_CTR2C_2 | 31,105,781 | 31,076,739 | 20,824,555 | 67.01
+p4_MKO2C_1 | 34,472,005 | 34,420,695 | 21,565,137 | 62.65
+p4_MKO2C_2 | 25,641,393 | 25,616,626 | 16,934,625 | 66.11
+
+#### Import functions
+```{r functions}
+source("../script/utils.R")
+```
+
+#### Data quality check
+
+```{r input data}
+RPKM_files <- list.files("../input/total_RNAseq/", 
+                         pattern = "*.gene_abund.txt")
+#input data
+RPKM <- inputStringTieRPKMfiles(RPKM_files,
+                                RPKMDataPath = "../input/total_RNAseq/")
+
+#remove ERCC annotations
+RPKM <- RPKM[-grep("ERCC", RPKM$id),]
+
+#use simplified sample names 
+sampleName <- c("p2_CTR1C_1", "p2_CTR1C_2", "p2_CTR2C_1", "p2_CTR2C_2",
+                "p2_MKO1C_1", "p2_MKO1C_2", "p2_MKO2C_1", "p2_MKO2C_2",
+                "p4_CTR1C_1", "p4_CTR1C_2", "p4_CTR2C_1", "p4_CTR2C_2",
+                "p4_MKO1C_1", "p4_MKO1C_2", "p4_MKO2C_1", "p4_MKO2C_2")
+colnames(RPKM) <- c("id", "name", sampleName)
+
+write.table(x = RPKM, file = paste0("../output/",
+                                    format(Sys.time(), '%b%e_%Y'),
+                                    "_Dppa2_Dppa4_totalRNAseqFPKM.txt"),
+            quote = F, sep = "\t", row.names = F)
+
+save(RPKM, file = paste0("../rdata/", 
+                  format(Sys.time(), '%b%e_%Y'),
+                  "_Dppa2_Dppa4_FPKM.Rdata"))
+```
+
+```{r correlationHeatmap, fig.height = 4, fig.width = 5, fig.align = "center"}
+#Correlation heatmap
+suppressMessages(library(reshape2))
+suppressMessages(library(ggplot2))
+suppressMessages(library(cowplot))
+
+logRPKM <- log2(RPKM[, sampleName]+0.1)
+
+#reorder columns for clearer heatmap
+logRPKM <- logRPKM[, c("p2_CTR1C_1", "p2_CTR1C_2", "p2_MKO1C_1", "p2_MKO1C_2",
+                       "p4_CTR1C_1", "p4_CTR1C_2", "p4_MKO1C_1", "p4_MKO1C_2",
+                       "p2_CTR2C_1", "p2_CTR2C_2", "p2_MKO2C_1", "p2_MKO2C_2",
+                       "p4_CTR2C_1", "p4_CTR2C_2", "p4_MKO2C_1", "p4_MKO2C_2")]
+
+logRPKMcor <- round(cor(logRPKM), 3)
+
+logRPKMcorMelted <- melt(logRPKMcor)
+
+theme <- theme(
+  panel.grid.major.y = element_line(),
+  panel.grid.major.x = element_line(),
+  panel.grid.minor.x = element_line(),
+  panel.grid.minor.y = element_blank(),
+  panel.background = element_rect(fill="white"),
+  axis.text.x = element_text(colour = "black", size = rel(1.5), angle = 90),  #size of x axis
+  axis.text.y = element_text(colour = "black", size = rel(1.5)),  #size of y axis
+  axis.title.y = element_blank(),
+  axis.title.x = element_blank(),
+  panel.border = element_rect(colour="black", fill=NA, size=0.5)
+)
+
+fig1 <- ggplot(data = logRPKMcorMelted, aes(Var1, Var2, fill = value)) +
+  geom_tile (color = "white") + 
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0.75, 
+                       limit = c(0.5, 1), space = 'Lab', name = "Pearson\nCorrelation") + 
+  theme
+fig1
+
+pdf(file = paste0("../figure/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_Dppa4_pooled_totalRNAseq_correation_heatmap.pdf"), width = 8, height = 6)
+fig1
+dev.off()
+```
+
+**In general, the correlation between replicates are quite good for further analyses.**
+
+#### DEseq2 analyses
+
+Following comparisons (n = 8) will be made:
+
+* Dppa2 1-cell CTR vs MKO (genes/repeats)
+* Dppa2 2-cell CTR vs MKO (genes/repeats)
+* Dppa4 1-cell CTR vs MKO (genes/repeats)
+* Dppa4 2-cell CTR vs MKO (genes/repeats)
+
+##### Organize counts
+```{r input raw counts}
+#input raw read counts
+Dppa2Counts <- read.table(
+  "../input/total_RNAseq/071821_TEtranscripts_out.cntTable", 
+  header = T, row.names = 1)
+Dppa4Counts <- read.table(
+  "../input/total_RNAseq/020221_Dppa4_1c2c_counts.cntTable",
+  header = T, row.names = 1)
+
+#simplify column names
+colnames(Dppa2Counts) <- c("p2_CTR2C_1", "p2_MKO2C_2", 
+                           "p2_CTR2C_2", "p2_MKO2C_1",
+                           "p2_CTR1C_2", "p2_MKO1C_2",
+                           "p2_MKO1C_1", "p2_CTR1C_1")
+
+# #for Dppa4, remove PG embryos
+# Dppa4Counts <- Dppa4Counts[, -grep("PG", colnames(Dppa4Counts))]
+# 
+# colnames(Dppa4Counts) <- c("p4_MKO1C_2", "p4_MKO1C_1",
+#                            "p4_MKO2C_2", "p4_MKO2C_1",
+#                            "p4_CTR2C_2", "p4_CTR1C_1",
+#                            "p4_CTR2C_1", "p4_CTR1C_2")
+```
+
+##### DESeq2
+```{r DESeq2}
+suppressMessages(library(DESeq2))
+
+#Dppa2 1-cell CTR vs MKO (genes/repeats)
+suppressMessages(
+  Dppa2_1C_DESeq <- countsToDEseq2FDR(
+    counts = Dppa2Counts[, c("p2_CTR1C_1", "p2_CTR1C_2",
+                             "p2_MKO1C_1", "p2_MKO1C_2")], 
+    CGroup = 2, TGroup = 2)
+)
+
+#Dppa2 2-cell CTR vs MKO (genes/repeats)
+suppressMessages(
+  Dppa2_2C_DESeq <- countsToDEseq2FDR(
+    counts = Dppa2Counts[, c("p2_CTR2C_1", "p2_CTR2C_2",
+                             "p2_MKO2C_1", "p2_MKO2C_2")], 
+    CGroup = 2, TGroup = 2)
+)
+
+#Dppa4 1-cell CTR vs MKO (genes/repeats)
+suppressMessages(
+  Dppa4_1C_DESeq <- countsToDEseq2FDR(
+    counts = Dppa4Counts[, c("p4_CTR1C_1", "p4_CTR1C_2",
+                             "p4_MKO1C_1", "p4_MKO1C_2")], 
+    CGroup = 2, TGroup = 2)
+)
+
+#Dppa4 2-cell CTR vs MKO (genes/repeats)
+suppressMessages(
+  Dppa4_2C_DESeq <- countsToDEseq2FDR(
+    counts = Dppa4Counts[, c("p4_CTR2C_1", "p4_CTR2C_2",
+                             "p4_MKO2C_1", "p4_MKO2C_2")], 
+    CGroup = 2, TGroup = 2)
+)
+```
+
+##### DE genes
+
+* **DE genes criteria: padj < 0.05, FC > 2, RPKM > 1**
+```{r classify DE genes}
+#merge DESeq data with RPKM table
+#Note that for common columns, RPKM values labeled as "*.x", 
+#whereas normalized counts labeled as "*.y"
+
+p2_1C_gene <- merge(RPKM[, c("id", "name",
+                             "p2_CTR1C_1", "p2_CTR1C_2",
+                             "p2_MKO1C_1", "p2_MKO1C_2")],
+                   Dppa2_1C_DESeq[, c("id", 
+                                      "p2_CTR1C_1", "p2_CTR1C_2",
+                                      "p2_MKO1C_1", "p2_MKO1C_2",
+                                      "log2FoldChange", "padj")],
+                   by = "id")
+
+p2_2C_gene <- merge(RPKM[, c("id", "name",
+                             "p2_CTR2C_1", "p2_CTR2C_2",
+                             "p2_MKO2C_1", "p2_MKO2C_2")],
+                   Dppa2_2C_DESeq[, c("id", 
+                                      "p2_CTR2C_1", "p2_CTR2C_2",
+                                      "p2_MKO2C_1", "p2_MKO2C_2",
+                                      "log2FoldChange", "padj")],
+                   by = "id")
+
+p4_1C_gene <- merge(RPKM[, c("id", "name",
+                             "p4_CTR1C_1", "p4_CTR1C_2",
+                             "p4_MKO1C_1", "p4_MKO1C_2")],
+                   Dppa4_1C_DESeq[, c("id",
+                                      "p4_CTR1C_1", "p4_CTR1C_2",
+                                      "p4_MKO1C_1", "p4_MKO1C_2",
+                                      "log2FoldChange", "padj")],
+                   by = "id")
+
+p4_2C_gene <- merge(RPKM[, c("id", "name",
+                             "p4_CTR2C_1", "p4_CTR2C_2",
+                             "p4_MKO2C_1", "p4_MKO2C_2")],
+                   Dppa4_2C_DESeq[, c("id",
+                                      "p4_CTR2C_1", "p4_CTR2C_2",
+                                      "p4_MKO2C_1", "p4_MKO2C_2",
+                                      "log2FoldChange", "padj")],
+                   by = "id")
+
+#some genes with padj = NA (due to huge variation, typically lowly expressed genes), replace with 1
+p2_1C_gene$padj[is.na(p2_1C_gene$padj)] <- 1
+p2_2C_gene$padj[is.na(p2_2C_gene$padj)] <- 1
+p4_1C_gene$padj[is.na(p4_1C_gene$padj)] <- 1
+p4_2C_gene$padj[is.na(p4_2C_gene$padj)] <- 1
+
+#Dppa2 1C CTR vs. MKO
+p2_1C_geneGroup <- classifyDEG(p2_1C_gene,
+                               ctr.rpkm = c("p2_CTR1C_1.x", "p2_CTR1C_2.x"),
+                               trt.rpkm = c("p2_MKO1C_1.x", "p2_MKO1C_2.x"),
+                               FDR.col = "padj", log2FC.col = "log2FoldChange",
+                               RPKM = 1, log2FC = log2(2), FDR = 0.05)
+p2_1C_gene <- cbind(p2_1C_gene, p2_1C_geneGroup)
+
+#Dppa2 2C CTR vs. MKO
+p2_2C_geneGroup <- classifyDEG(p2_2C_gene,
+                               ctr.rpkm = c("p2_CTR2C_1.x", "p2_CTR2C_2.x"),
+                               trt.rpkm = c("p2_MKO2C_1.x", "p2_MKO2C_2.x"),
+                               FDR.col = "padj", log2FC.col = "log2FoldChange",
+                               RPKM = 1, log2FC = log2(2), FDR = 0.05)
+p2_2C_gene <- cbind(p2_2C_gene, p2_2C_geneGroup)
+
+#Dppa4 1C CTR vs. MKO
+p4_1C_geneGroup <- classifyDEG(p4_1C_gene,
+                               ctr.rpkm = c("p4_CTR1C_1.x", "p4_CTR1C_2.x"),
+                               trt.rpkm = c("p4_MKO1C_1.x", "p4_MKO1C_2.x"),
+                               FDR.col = "padj", log2FC.col = "log2FoldChange",
+                               RPKM = 1, log2FC = log2(2), FDR = 0.05)
+p4_1C_gene <- cbind(p4_1C_gene, p4_1C_geneGroup)
+
+p4_2C_geneGroup <- classifyDEG(p4_2C_gene,
+                               ctr.rpkm = c("p4_CTR2C_1.x", "p4_CTR2C_2.x"),
+                               trt.rpkm = c("p4_MKO2C_1.x", "p4_MKO2C_2.x"),
+                               FDR.col = "padj", log2FC.col = "log2FoldChange",
+                               RPKM = 1, log2FC = log2(2), FDR = 0.05)
+p4_2C_gene <- cbind(p4_2C_gene, p4_2C_geneGroup)
+```
+
+##### DEG scatterplots
+
+```{r scatter plot, fig.height = 6, fig.width = 5, fig.align = "center"}
+
+#average and log for normalized counts
+p2_1C_gene$logCTR <- log2((p2_1C_gene$p2_CTR1C_1.y + 
+                           p2_1C_gene$p2_CTR1C_2.y)/2 + 1)
+p2_1C_gene$logMKO <- log2((p2_1C_gene$p2_MKO1C_1.y + 
+                           p2_1C_gene$p2_MKO1C_2.y)/2 +1)
+
+p2_2C_gene$logCTR <- log2((p2_2C_gene$p2_CTR2C_1.y +
+                           p2_2C_gene$p2_CTR2C_2.y)/2 + 1)
+p2_2C_gene$logMKO <- log2((p2_2C_gene$p2_MKO2C_1.y + 
+                           p2_2C_gene$p2_MKO2C_2.y)/2 + 1)
+
+p4_1C_gene$logCTR <- log2((p4_1C_gene$p4_CTR1C_1.y +
+                           p4_1C_gene$p4_CTR1C_2.y)/2 + 1)
+p4_1C_gene$logMKO <- log2((p4_1C_gene$p4_MKO1C_1.y +
+                           p4_1C_gene$p4_MKO1C_2.y)/2 + 1)
+
+p4_2C_gene$logCTR <- log2((p4_2C_gene$p4_CTR2C_1.y + 
+                           p4_2C_gene$p4_CTR2C_2.y)/2 + 1)
+p4_2C_gene$logMKO <- log2((p4_2C_gene$p4_MKO2C_1.y +
+                           p4_2C_gene$p4_MKO2C_2.y)/2 + 1)
+
+#Generate plots
+fig2_p2_1C <- ggScatterplot(p2_1C_gene, x = "logCTR", y = "logMKO",
+                            group = "p2_1C_geneGroup", gene = "name",
+                            xlab = "CTR", ylab = "MKO", title = "Dppa2 (1-cell) genes",
+                            label.up = paste0("Up-regulated:",
+                                              nrow(p2_1C_gene[which(p2_1C_gene$p2_1C_geneGroup == "up-regulated"),])),
+                            label.down = paste0("Down-regulated:",
+                                                nrow(p2_1C_gene[which(p2_1C_gene$p2_1C_geneGroup == "down-regulated"),])),
+                            genes4Label = c("Duxf3","Zscan4c","Zscan4d", "Dppa2", "Dppa4","Zfp352"),
+                            FC.line = 2)
+
+fig2_p2_2C <- ggScatterplot(p2_2C_gene, x = "logCTR", y = "logMKO",
+                            group = "p2_2C_geneGroup", gene = "name",
+                            xlab = "CTR", ylab = "MKO", title = "Dppa2 (2-cell) genes",
+                            my.color=c("grey50", "grey50"),
+                            label.up = paste0("Up-regulated:",
+                                              nrow(p2_2C_gene[which(p2_2C_gene$p2_2C_geneGroup == "up-regulated"),])),
+                            label.down = paste0("Down-regulated:",
+                                                nrow(p2_2C_gene[which(p2_2C_gene$p2_2C_geneGroup == "down-regulated"),])),
+                            genes4Label = c("Duxf3","Zscan4c","Zscan4d", "Dppa2", "Dppa4","Zfp352"),
+                            FC.line = 2)
+
+fig2_p4_1C <- ggScatterplot(p4_1C_gene, x = "logCTR", y = "logMKO",
+                            group = "p4_1C_geneGroup", gene = "name",
+                            xlab = "CTR", ylab = "MKO", title = "Dppa4 (1-cell) genes",
+                            label.up = paste0("Up-regulated:",
+                                              nrow(p4_1C_gene[which(p4_1C_gene$p4_1C_geneGroup == "up-regulated"),])),
+                            label.down = paste0("Down-regulated:",
+                                                nrow(p4_1C_gene[which(p4_1C_gene$p4_1C_geneGroup == "down-regulated"),])),
+                            genes4Label = c("Duxf3","Zscan4c","Zscan4d", "Dppa2", "Dppa4","Zfp352"),
+                            FC.line = 2)
+
+fig2_p4_2C <- ggScatterplot(p4_2C_gene, x = "logCTR", y = "logMKO",
+                            group = "p4_2C_geneGroup", gene = "name",
+                            xlab = "CTR", ylab = "MKO", title = "Dppa4 (2-cell) genes",
+                            my.color=c("grey50", "grey50", "red3"),
+                            label.up = paste0("Up-regulated:",
+                                              nrow(p4_2C_gene[which(p4_2C_gene$p4_2C_geneGroup == "up-regulated"),])),
+                            label.down = paste0("Down-regulated:",
+                                                nrow(p4_2C_gene[which(p4_2C_gene$p4_2C_geneGroup == "down-regulated"),])),
+                            genes4Label = c("Duxf3","Zscan4c","Zscan4d", "Dppa2", "Dppa4","Zfp352"),
+                            FC.line = 2)
+
+plot_grid(fig2_p2_1C, fig2_p2_2C, fig2_p4_1C, fig2_p4_2C, 
+          labels = c('A', 'B', 'C', 'D'), label_size = 20)
+
+```
+
+##### Save plots
+```{r save gene scatter plot}
+pdf(file = paste0("../figure/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_Dppa4_pooled_totalRNA_scatterDEG.pdf"), width = 6, height = 6)
+#plot_grid(fig2_p2_1C, fig2_p2_2C, fig2_p4_1C, fig2_p4_2C, 
+#          labels = c('A', 'B', 'C', 'D'), label_size = 20)
+fig2_p2_1C
+fig2_p2_2C
+fig2_p4_1C
+fig2_p4_2C
+dev.off()
+```
+
+##### DE repeats
+
+* **DE repeats criteria:  padj < 0.05, FC > 2**
+```{r identify DE repeats}
+#Repeats (padj < 0.05, FC > 2)
+
+p2_1C_repeat <- Dppa2_1C_DESeq[grep(":", Dppa2_1C_DESeq$id),]
+p2_2C_repeat <- Dppa2_2C_DESeq[grep(":", Dppa2_2C_DESeq$id),]
+p4_1C_repeat <- Dppa4_1C_DESeq[grep(":", Dppa4_1C_DESeq$id),]
+p4_2C_repeat <- Dppa4_2C_DESeq[grep(":", Dppa4_2C_DESeq$id),]
+
+#some genes with padj = NA (due to huge variation), replace with 1
+p2_1C_repeat$padj[is.na(p2_1C_repeat$padj)] <- 1
+p2_2C_repeat$padj[is.na(p2_2C_repeat$padj)] <- 1
+p4_1C_repeat$padj[is.na(p4_1C_repeat$padj)] <- 1
+p4_2C_repeat$padj[is.na(p4_2C_repeat$padj)] <- 1
+
+#classify DE repeats
+p2_1C_repeatGroup <- classifyDEG(p2_1C_repeat, 
+                                 ctr.rpkm = c("p2_CTR1C_1", "p2_CTR1C_2"),
+                                 trt.rpkm = c("p2_MKO1C_1", "p2_MKO1C_2"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(2), FDR = 0.05)
+p2_1C_repeat <- cbind(p2_1C_repeat, p2_1C_repeatGroup)
+
+p2_2C_repeatGroup <- classifyDEG(p2_2C_repeat,
+                                 ctr.rpkm = c("p2_CTR2C_1", "p2_CTR2C_2"),
+                                 trt.rpkm = c("p2_MKO2C_1", "p2_MKO2C_2"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(2), FDR = 0.05)
+p2_2C_repeat <- cbind(p2_2C_repeat, p2_2C_repeatGroup)
+
+p4_1C_repeatGroup <- classifyDEG(p4_1C_repeat, 
+                                 ctr.rpkm = c("p4_CTR1C_1", "p4_CTR1C_2"),
+                                 trt.rpkm = c("p4_MKO1C_1", "p4_MKO1C_2"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(2), FDR = 0.05)
+p4_1C_repeat <- cbind(p4_1C_repeat, p4_1C_repeatGroup)
+
+p4_2C_repeatGroup <- classifyDEG(p4_2C_repeat,
+                                 ctr.rpkm = c("p4_CTR2C_1", "p4_CTR2C_2"),
+                                 trt.rpkm = c("p4_MKO2C_1", "p4_MKO2C_2"),
+                                 FDR.col = "padj", log2FC.col = "log2FoldChange", RPKM = 0,
+                                 log2FC = log2(2), FDR = 0.05)
+p4_2C_repeat <- cbind(p4_2C_repeat, p4_2C_repeatGroup)
+```
+
+##### Repeat scatterPlot
+```{r Repeat scatter plot, fig.height = 6, fig.width = 5, fig.align = "center"}
+#take average and log of normalized counts for each repeat
+p2_1C_repeat$logCTR <- log2((p2_1C_repeat$p2_CTR1C_1 +
+                             p2_1C_repeat$p2_CTR1C_2)/2 + 1)
+
+p2_1C_repeat$logMKO <- log2((p2_1C_repeat$p2_MKO1C_1 + 
+                             p2_1C_repeat$p2_MKO1C_2)/2 + 1)
+
+p2_2C_repeat$logCTR <- log2((p2_2C_repeat$p2_CTR2C_1 + 
+                             p2_2C_repeat$p2_CTR2C_2)/2 + 1)
+
+p2_2C_repeat$logMKO <- log2((p2_2C_repeat$p2_MKO2C_1 + 
+                             p2_2C_repeat$p2_MKO2C_2)/2 + 1)
+
+p4_1C_repeat$logCTR <- log2((p4_1C_repeat$p4_CTR1C_1 + 
+                             p4_1C_repeat$p4_CTR1C_2)/2 + 1)
+
+p4_1C_repeat$logMKO <- log2((p4_1C_repeat$p4_MKO1C_1 +
+                             p4_1C_repeat$p4_MKO1C_2)/2 + 1)
+
+p4_2C_repeat$logCTR <- log2((p4_2C_repeat$p4_CTR2C_1 +
+                             p4_2C_repeat$p4_CTR2C_2)/2 + 1)
+
+p4_2C_repeat$logMKO <- log2((p4_2C_repeat$p4_MKO2C_1 + 
+                             p4_2C_repeat$p4_MKO2C_2)/2 + 1)
+
+fig3_p2_1C <- ggScatterplot(p2_1C_repeat, x = "logCTR", y = "logMKO",
+                      group = "p2_1C_repeatGroup", gene = "id", 
+                      xlab = "CTR", ylab = "MKO",
+                      title = "Dppa2 (1-cell) Repeats",
+                      label.up = paste0("Up-regulated:", 
+                                        nrow(p2_1C_repeat[which(p2_1C_repeat$p2_1C_repeatGroup == "up-regulated"),])), 
+                      label.down = paste0("Down-regulated:", nrow(p2_1C_repeat[which(p2_1C_repeat$p2_1C_repeatGroup == "down-regulated"),])),
+                      my.color=c("grey50", "red3"),
+                      genes4Label = c(
+                        "MERVL-int:ERVL:LTR","L1Md_T:L1:LINE",
+                        "L1Md_A:L1:LINE", "MT2_Mm:ERVL:LTR"),
+                      FC.line = 2)
+
+fig3_p2_2C <- ggScatterplot(p2_2C_repeat, x = "logCTR", y = "logMKO",
+                      group = "p2_2C_repeatGroup", gene = "id", 
+                      xlab = "CTR", ylab = "MKO",
+                      title = "Dppa2 (2-cell) Repeats",
+                      label.up = paste0("Up-regulated:", 
+                                        nrow(p2_2C_repeat[which(p2_2C_repeat$p2_2C_repeatGroup == "up-regulated"),])), 
+                      label.down = paste0("Down-regulated:",                              nrow(p2_2C_repeat[which(p2_2C_repeat$p2_2C_repeatGroup == "down-regulated"),])),
+                      my.color=c("grey50"),
+                      genes4Label = c(
+                        "MERVL-int:ERVL:LTR","L1Md_T:L1:LINE",
+                        "L1Md_A:L1:LINE", "MT2_Mm:ERVL:LTR"),
+                      FC.line = 2)
+
+fig3_p4_1C <- ggScatterplot(p4_1C_repeat, x = "logCTR", y = "logMKO",
+                      group = "p4_1C_repeatGroup", gene = "id", 
+                      xlab = "CTR", ylab = "MKO",
+                      title = "Dppa4 (1-cell) Repeats",
+                      label.up = paste0("Up-regulated:", 
+                                        nrow(p4_1C_repeat[which(p4_1C_repeat$p4_1C_repeatGroup == "up-regulated"),])), 
+                      label.down = paste0("Down-regulated:", nrow(p4_1C_repeat[which(p4_1C_repeat$p4_1C_repeatGroup == "down-regulated"),])),
+                      my.color=c("grey50"),
+                      genes4Label = c(
+                        "MERVL-int:ERVL:LTR","L1Md_T:L1:LINE",
+                        "L1Md_A:L1:LINE", "MT2_Mm:ERVL:LTR"),
+                      FC.line = 2)
+
+fig3_p4_2C <- ggScatterplot(p4_2C_repeat, x = "logCTR", y = "logMKO",
+                      group = "p4_2C_repeatGroup", gene = "id", 
+                      xlab = "CTR", ylab = "MKO",
+                      title = "Dppa4 (2-cell) Repeats",
+                      label.up = paste0("Up-regulated:", 
+                                        nrow(p4_2C_repeat[which(p4_2C_repeat$p4_2C_repeatGroup == "up-regulated"),])), 
+                      label.down = paste0("Down-regulated:", nrow(p4_2C_repeat[which(p4_2C_repeat$p4_2C_repeatGroup == "down-regulated"),])),
+                      my.color=c("grey50"),
+                      genes4Label = c(
+                        "MERVL-int:ERVL:LTR","L1Md_T:L1:LINE",
+                        "L1Md_A:L1:LINE", "MT2_Mm:ERVL:LTR"),
+                      FC.line = 2)
+plot_grid(fig3_p2_1C, fig3_p2_2C, fig3_p4_1C, fig3_p4_2C,
+          labels = c('A', 'B', 'C', 'D'), label_size = 20)
+```
+
+##### Save plots
+```{r save repeat scatter plot}
+pdf(file = paste0("../figure/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_Dppa4_pooled_totalRNA_repeat.pdf"), width = 6, height = 6)
+#plot_grid(fig3_p2_1C, fig3_p2_2C, fig3_p4_1C, fig3_p4_2C, 
+#          labels = c('A', 'B', 'C', 'D'), label_size = 20)
+fig3_p2_1C
+fig3_p2_2C
+fig3_p4_1C
+fig3_p4_2C
+dev.off()
+```
+
+##### Save csv files
+```{r output csv}
+write.table(p2_1C_gene, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_totalRNA_1cell_genes.csv"), sep = ",", quote = F, row.names = F)
+write.table(p2_2C_gene, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_totalRNA_2cell_genes.csv"), sep = ",", quote = F, row.names = F)
+write.table(p4_1C_gene, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa4_totalRNA_1cell_genes.csv"), sep = ",", quote = F, row.names = F)
+write.table(p4_2C_gene, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa4_totalRNA_2cell_genes.csv"), sep = ",", quote = F, row.names = F)
+write.table(p2_1C_repeat, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_totalRNA_1cell_repeat.csv"), sep = ",", quote = F, row.names = F)
+write.table(p2_2C_repeat, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa2_totalRNA_2cell_repeat.csv"), sep = ",", quote = F, row.names = F)
+write.table(p4_1C_repeat, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa4_totalRNA_1cell_repeat.csv"), sep = ",", quote = F, row.names = F)
+write.table(p4_2C_repeat, file = paste0("../output/", format(Sys.Date(), "%y%m%d"), 
+                   "_Dppa4_totalRNA_2cell_repeat.csv"), sep = ",", quote = F, row.names = F)
+```
+
+
+
+
+

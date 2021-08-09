@@ -1,0 +1,399 @@
+---
+title: "Dppa2_4_public_data_integration"
+author: "Zhiyuan Chen"
+date: "`r format(Sys.time(), '%B %e, %Y')`"
+output: 
+  html_notebook:
+    theme: paper 
+    toc: yes
+---
+
+
+#### Meta data info
+
+Reik_lab: http://genesdev.cshlp.org/content/33/3-4/194
+
+  + Reverse_stranded PolyA RNA-seq
+  + SE 50bp
+  + WT x 2, Dppa2KO x 2, Dppa4KO x 2, Dppa2_4DKO x 1
+  
+Trono_lab: https://www.embopress.org/doi/full/10.15252/embr.201847382
+
+  + Reverse_stranded total RNA-seq
+  + PE 75bp
+  + WT x 3, Dppa2KO x 3, Dppa4KO x 3
+  
+Wang_lab: https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.3000324
+
+  + PolyA RNA-seq (non-stranded)
+  + PE 150bp
+  + NC x 2, Dppa2KD x 2, Dppa4KD x 2, Dppa2_4DKD x 2, OE_CTRR x 2, Dppa2OE x 2
+  
+#### Import functions
+```{r functions}
+source("../script/utils.R")
+```
+
+#### Import RPKM for each datasets
+##### Reik_lab RPKM
+```{r input Reik RPKM}
+Reik_RPKM_files <- list.files("../input/public/", 
+                         pattern = "CRISPR*")
+
+Reik_RPKM <- inputStringTieRPKMfiles(Reik_RPKM_files,
+                                RPKMDataPath = "../input/public/")
+#remove ERCC annotations
+Reik_RPKM <- Reik_RPKM[-grep("ERCC", Reik_RPKM$id),]
+
+#use simplified sample names 
+tmp_Name <- c("reik_p2_ko1", "reik_p2_ko2", 
+              "reik_p4_ko1", "reik_p4_ko2",
+              "reik_dko", "reik_wt1", "reik_wt2")
+
+colnames(Reik_RPKM) <- c("id", "name", tmp_Name)
+
+#reorder columns
+Reik_RPKM <- Reik_RPKM[, c("id", "name",
+                           "reik_wt1", "reik_wt2", "reik_p2_ko1",
+                           "reik_p2_ko2", "reik_p4_ko1", "reik_p4_ko2", 
+                           "reik_dko")]
+```
+
+##### Trono_lab RPKM
+```{r input Trono RPKM}
+Trono_RPKM_files <- list.files("../input/public/", 
+                         pattern = "RNAseq_*")
+
+Trono_RPKM <- inputStringTieRPKMfiles(Trono_RPKM_files,
+                                RPKMDataPath = "../input/public/")
+#remove ERCC annotations
+Trono_RPKM <- Trono_RPKM[-grep("ERCC", Trono_RPKM$id),]
+
+#use simplified sample names 
+tmp_Name <- c("trono_p2_ko1", "trono_p2_ko2", "trono_p2_ko3", 
+              "trono_p4_ko1", "trono_p4_ko2", "trono_p4_ko3",
+              "trono_wt1", "trono_wt2", "trono_wt3")
+
+colnames(Trono_RPKM) <- c("id", "name", tmp_Name)
+
+#reorder columns
+Trono_RPKM <- Trono_RPKM[, c("id", "name",
+                           "trono_wt1", "trono_wt2", "trono_wt3",
+                           "trono_p2_ko1", "trono_p2_ko2", "trono_p2_ko3",
+                           "trono_p4_ko1", "trono_p4_ko2", "trono_p4_ko3")]
+```
+
+##### Wang_lab RPKM
+```{r input Wang RPKM}
+Wang_RPKM_files1 <- list.files("../input/public/", 
+                         pattern = "si_*")
+Wang_RPKM_files2 <- list.files("../input/public/", 
+                         pattern = "OE_*")
+Wang_RPKM_files <- c(Wang_RPKM_files1, Wang_RPKM_files2)
+
+Wang_RPKM <- inputStringTieRPKMfiles(Wang_RPKM_files,
+                                RPKMDataPath = "../input/public/")
+#remove ERCC annotations
+Wang_RPKM <- Wang_RPKM[-grep("ERCC", Wang_RPKM$id),]
+```
+
+```{r input Wang RPKM2}
+#use simplified sample names 
+tmp_Name <- c("wang_p24_dkd1", "wang_p24_dkd2", 
+              "wang_p2_kd1", "wang_p2_kd2", 
+              "wang_p4_kd1", "wang_p4_kd2",
+              "wang_nc_kd1", "wang_nc_kd2",
+              "wang_p2_oe1", "wang_p2_oe2",
+              "wang_nc_oe1", "wang_nc_oe2")
+
+colnames(Wang_RPKM) <- c("id", "name", tmp_Name)
+
+#reorder columns
+Wang_RPKM <- Wang_RPKM[, c("id", "name",
+                           "wang_nc_kd1", "wang_nc_kd2",
+                           "wang_p2_kd1", "wang_p2_kd2", 
+                           "wang_p4_kd1", "wang_p4_kd2",
+                           "wang_p24_dkd1", "wang_p24_dkd2",
+                           "wang_nc_oe1", "wang_nc_oe2",
+                           "wang_p2_oe1", "wang_p2_oe2")]
+```
+
+##### Our_RPKM
+```{r input our RPKM}
+RPKM_files <- list.files("../input/polyA_RNAseq/", 
+                         pattern = "*.gene_abund.txt")
+
+#input data
+RPKM <- inputStringTieRPKMfiles(RPKM_files,
+                                RPKMDataPath = "../input/polyA_RNAseq/")
+
+#remove ERCC annotations
+RPKM <- RPKM[-grep("ERCC", RPKM$id),]
+
+#use simplified sample names 
+sampleName <- c("p2_MKO_1", "p2_MKO_7", "p2_MKO_9",
+                "p2_MZKO_2", "p2_MZKO_4", "p2_MZKO_5", 
+                "CTR1C_2", "CTR1C_3", "CTR2C_1", "CTR2C_2",
+                "p4_MKO_1", "p4_MKO_2", "p4_MKO_5", 
+                "p4_MZKO_10", "p4_MZKO_11", "p4_MZKO_6")
+
+colnames(RPKM) <- c("id", "name", sampleName)
+
+#reorder columns
+RPKM <- RPKM[, c("id", "name",
+                 "CTR1C_2", "CTR1C_3", "CTR2C_1", "CTR2C_2",
+                 "p2_MKO_1", "p2_MKO_7", "p2_MKO_9",
+                 "p2_MZKO_2", "p2_MZKO_4", "p2_MZKO_5",
+                 "p4_MKO_1", "p4_MKO_2", "p4_MKO_5",
+                 "p4_MZKO_6", "p4_MZKO_10", "p4_MZKO_11")]
+```
+
+Next obtain raw counts of repeats using TEtranscripts and use DESeq2 to normalize counts 
+##### Organize counts
+```{r input raw counts}
+#input raw read counts
+ReikCounts <- read.table(
+  "../input/public/Reik_TEtranscript_out.cntTable",
+  header = T, row.names = 1)
+TronoCounts <- read.table(
+  "../input/public/Trono_TEtranscripts_out.cntTable", 
+  header = T, row.names = 1)
+WangCounts <- read.table(
+  "../input/public/Wang_TEtranscripts_out.cntTable",
+  header = T, row.names = 1)
+CTRcounts <- read.table(
+  "../input/polyA_RNAseq/071721_TEtranscripts_out.cntTable",
+  header = T, row.names = 1)
+Dppa2Counts <- read.table(
+  "../input/polyA_RNAseq/070721_TEtranscripts_out.cntTable", 
+  header = T, row.names = 1)
+Dppa4Counts <- read.table(
+  "../input/polyA_RNAseq/Dppa4_single2C_TEtranscripts_out_062821.cntTable",
+  header = T, row.names = 1)
+
+#simplify column names
+
+#05 = p2ko1, 12 = p2ko2, 23 = p4ko1, 29 = p4ko2,
+#43 = dko, 57 = wt1, 58 = wt2
+colnames(ReikCounts) <- c("reik_p2_ko1", "reik_p4_ko1", 
+                         "reik_dko", "reik_p2_ko2",
+                         "reik_p4_ko2", "reik_wt2", "reik_wt1")
+
+#1A4=p2ko1, 1B1=p2ko2, 1B4=p2ko3
+#1D7=p4ko1, 2D7=p4ko2, 3A5=p4ko3
+#1B3=wt1, 1C3=wt2, 3B1=wt3
+colnames(TronoCounts) <- c("trono_p2_ko3", "trono_p4_ko2", "trono_p2_ko1",
+                           "trono_p4_ko1", "trono_p2_ko2", "trono_p4_ko3",
+                           "trono_wt1", "trono_wt3", "trono_wt2")
+
+colnames(WangCounts) <- c("wang_p2_oe1", "wang_p24_dkd1", "wang_p2_oe2",
+                           "wang_p2_kd1", "wang_p4_kd2", "wang_p4_kd1",
+                          "wang_p24_dkd2", "wang_p2_kd2", "wang_nc_oe1",
+                          "wang_nc_kd2", "wang_nc_kd1", "wang_nc_oe2")
+
+colnames(CTRcounts) <- c("CTR2C_2", "CTR2C_1", 
+                         "CTR1C_3", "CTR1C_2")
+
+colnames(Dppa2Counts) <- c("p2_MZKO_5", "p2_MZKO_4", "p2_MZKO_2",
+                           "p2_MKO_1", "p2_MKO_9", "p2_MKO_7")
+Dppa2Counts <- Dppa2Counts[, c("p2_MKO_1", "p2_MKO_7", "p2_MKO_9",
+                               "p2_MZKO_2", "p2_MZKO_4", "p2_MZKO_5")]
+
+colnames(Dppa4Counts) <- c("p4_MKO_5", "p4_MKO_2", "p4_MKO_1",
+                           "p4_MZKO_10", "p4_MZKO_11", "p4_MZKO_6")
+Dppa4Counts <- Dppa4Counts[, c("p4_MKO_1", "p4_MKO_2", "p4_MKO_5",
+                               "p4_MZKO_6", "p4_MZKO_10", "p4_MZKO_11")]
+
+#combine our Counts 
+our_Counts <- cbind(CTRcounts, Dppa2Counts, Dppa4Counts)
+```
+
+##### Normalize counts
+```{r DESeq2}
+suppressMessages(library(DESeq2))
+
+#Reik_lab normalized Counts
+suppressMessages(
+  Reik_normCounts <- countsToDEseq2FDR(
+     counts = ReikCounts[, c("reik_wt1", "reik_wt2",
+                            "reik_p2_ko1", "reik_p2_ko2", 
+                            "reik_p4_ko1", "reik_p4_ko2",
+                            "reik_dko")], 
+     CGroup = 2, TGroup = 5)
+ )
+
+#Trono_lab normalized Counts
+suppressMessages(
+  Trono_normCounts <- countsToDEseq2FDR(
+    counts = TronoCounts[, c("trono_wt1", "trono_wt3", "trono_wt2",
+                             "trono_p2_ko1", "trono_p2_ko2", "trono_p2_ko3",
+                             "trono_p4_ko1", "trono_p4_ko2", "trono_p4_ko3")], 
+    CGroup = 3, TGroup = 6)
+)
+
+#Wang_lab normalized Counts
+suppressMessages(
+  Wang_normCounts <- countsToDEseq2FDR(
+    counts = WangCounts[, c("wang_nc_kd1", "wang_nc_kd2",
+                            "wang_p2_kd1", "wang_p2_kd2",
+                            "wang_p4_kd1", "wang_p4_kd2", 
+                            "wang_p24_dkd1", "wang_p24_dkd2",
+                            "wang_nc_oe1",  "wang_nc_oe2",
+                            "wang_p2_oe1",  "wang_p2_oe2"
+                            )], 
+    CGroup = 2, TGroup = 10)
+)
+
+#Our_lab normalized Counts
+suppressMessages(
+  our_normCounts <- countsToDEseq2FDR(
+    counts = our_Counts[, c("CTR1C_2", "CTR1C_3",
+                           "CTR2C_1", "CTR2C_2",
+                           "p2_MKO_1", "p2_MKO_7", "p2_MKO_9",
+                           "p2_MZKO_2", "p2_MZKO_4", "p2_MZKO_5",
+                           "p4_MKO_1", "p4_MKO_2", "p4_MKO_5",
+                           "p4_MZKO_6", "p4_MZKO_10", "p4_MZKO_11")], 
+    CGroup = 4, TGroup = 12)
+)
+```
+
+##### Combine gene/repeat
+
+RPKM for genes and normalized counts (DESeq2) repeats
+```{r combin gene repeats}
+
+#Reik_lab
+Reik_repeats <- Reik_normCounts[grep(":", Reik_normCounts$id),]
+colnames(Reik_repeats)[14] <- "name"
+
+Reik <- rbind(
+  Reik_RPKM[, c("name", "reik_wt1", "reik_wt2", 
+                "reik_p2_ko1", "reik_p2_ko2",
+                "reik_p4_ko1", "reik_p4_ko2", "reik_dko")],
+  Reik_repeats[, c("name", "reik_wt1", "reik_wt2", 
+                "reik_p2_ko1", "reik_p2_ko2",
+                "reik_p4_ko1", "reik_p4_ko2", "reik_dko")]
+)
+
+#Trono lab
+Trono_repeats <- Trono_normCounts[grep(":", Trono_normCounts$id),]
+colnames(Trono_repeats)[16] <- "name"
+
+Trono <- rbind(
+  Trono_RPKM[, c("name", "trono_wt1", "trono_wt2", "trono_wt3",
+                 "trono_p2_ko1", "trono_p2_ko2", "trono_p2_ko3",
+                 "trono_p4_ko1", "trono_p4_ko2", "trono_p4_ko3")],
+  Trono_repeats[, c("name", "trono_wt1", "trono_wt2", "trono_wt3",
+                 "trono_p2_ko1", "trono_p2_ko2", "trono_p2_ko3",
+                 "trono_p4_ko1", "trono_p4_ko2", "trono_p4_ko3")]
+)
+
+#Wang lab
+Wang_repeats <- Wang_normCounts[grep(":", Wang_normCounts$id),]
+colnames(Wang_repeats)[19] <- "name"
+
+Wang <- rbind(
+  Wang_RPKM[, c("name", "wang_nc_kd1", "wang_nc_kd2",
+                "wang_p2_kd1", "wang_p2_kd2",  
+                "wang_p4_kd1", "wang_p4_kd2",
+                "wang_p24_dkd1", "wang_p24_dkd2",
+                "wang_nc_oe1", "wang_nc_oe2",  
+                "wang_p2_oe1", "wang_p2_oe2")],
+  Wang_repeats[, c("name", "wang_nc_kd1", "wang_nc_kd2",
+                "wang_p2_kd1", "wang_p2_kd2",  
+                "wang_p4_kd1", "wang_p4_kd2",
+                "wang_p24_dkd1", "wang_p24_dkd2",
+                "wang_nc_oe1", "wang_nc_oe2",  
+                "wang_p2_oe1", "wang_p2_oe2")]
+)
+
+#Zhang lab
+Our_repeats <- our_normCounts[grep(":", our_normCounts$id),]
+colnames(Our_repeats)[23] <- "name"
+
+Our <- rbind(
+  RPKM[, c("name", "CTR1C_2", "CTR1C_3", "CTR2C_1", "CTR2C_2",   
+           "p2_MKO_1", "p2_MKO_7", "p2_MKO_9", "p2_MZKO_2",
+           "p2_MZKO_4", "p2_MZKO_5", "p4_MKO_1", "p4_MKO_2",
+           "p4_MKO_5", "p4_MZKO_6",  "p4_MZKO_10", "p4_MZKO_11")],
+  Our_repeats[, c("name", "CTR1C_2", "CTR1C_3", "CTR2C_1", "CTR2C_2",   
+           "p2_MKO_1", "p2_MKO_7", "p2_MKO_9", "p2_MZKO_2",
+           "p2_MZKO_4", "p2_MZKO_5", "p4_MKO_1", "p4_MKO_2",
+           "p4_MKO_5", "p4_MZKO_6",  "p4_MZKO_10", "p4_MZKO_11")]
+)
+```
+
+##### heatmap
+```{r heatmap}
+gene2C <- c("Zscan4c", "Zscan4d", 
+           "Zfp352", 
+           "Tcstv3",
+           "Pramef25",
+           "Kdm4dl",
+           "Tdpoz3",
+           "Tdpoz4",
+           "MERVL-int:ERVL:LTR", "MT2_Mm:ERVL:LTR", "GSAT_MM:Satellite:Satellite"
+           )
+
+suppressMessages(library(pheatmap))
+suppressMessages(library(RColorBrewer))
+suppressMessages(library(ComplexHeatmap))
+suppressMessages(library(circlize))
+
+#Reik_lab
+Reik2C <- Reik[which(Reik$name %in% gene2C),]
+Reik2Cmat <- log2(as.matrix(Reik2C[, c(2:8)]+0.1))
+row.names(Reik2Cmat) <- Reik2C$name
+
+#Trono_lab
+Trono2C <- Trono[which(Trono$name %in% gene2C),]
+Trono2Cmat <- log2(as.matrix(Trono2C[, c(2:10)]+0.1))
+row.names(Trono2Cmat) <- Trono2C$name
+
+#Wang_lab
+Wang2C <- Wang[which(Wang$name %in% gene2C),]
+Wang2Cmat1 <- log2(as.matrix(Wang2C[, c(2:9)]+0.1))
+Wang2Cmat2 <- log2(as.matrix(Wang2C[, c(10:13)]+0.1))
+row.names(Wang2Cmat1) <- Wang2C$name
+row.names(Wang2Cmat2) <- Wang2C$name
+
+#our lab 
+Our2C <- Our[which(Our$name %in% gene2C),]
+Our2Cmat <- log2(as.matrix(Our2C[, c(2:17)]+0.1))
+row.names(Our2Cmat) <- Our2C$name
+
+#Heatmap
+pdf(file = paste0("../figure/", format(Sys.Date(), "%y%m%d"), 
+                   "_2CgenesInESCsEmbryos.pdf"), width = 6, height = 6)
+breaksList = seq(-2, 2, by = 0.1)
+
+pheatmap(Reik2Cmat, scale = "row",
+         cluster_cols = F, cluster_rows = F, treeheight_row = 0,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
+         breaks = breaksList)
+
+pheatmap(Trono2Cmat, scale = "row",
+         cluster_cols = F, cluster_rows = F, treeheight_row = 0,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
+         breaks = breaksList)
+
+pheatmap(Wang2Cmat1, scale = "row",
+         cluster_cols = F, cluster_rows = F, treeheight_row = 0,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
+         breaks = breaksList)
+
+pheatmap(Wang2Cmat2, scale = "row",
+         cluster_cols = F, cluster_rows = F, treeheight_row = 0,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
+         breaks = breaksList)
+
+pheatmap(Our2Cmat, scale = "row",
+         cluster_cols = F, cluster_rows = F, treeheight_row = 0,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(length(breaksList)),
+         breaks = breaksList)
+dev.off()
+```
+
+
+
+
